@@ -14,6 +14,8 @@ spec:
     metadata:
       name: '{{cluster}}-todo-app'
       annotations:
+      # THÊM DÒNG NÀY: Cho phép Updater quản lý App được tạo từ AppSet
+        argocd-image-updater.argoproj.io/write-back-method: argocd
         # Cấu hình ArgoCD Image Updater soi vào Docker Hub của bạn
         argocd-image-updater.argoproj.io/image-list: todo-app=docker.io/thien19012004/todo-app
         # Yêu cầu Updater ghi đè cái image.tag trong thư mục values.yaml của Helm
