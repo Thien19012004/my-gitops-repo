@@ -14,7 +14,7 @@ spec:
       name: '{{cluster}}-todo-app'
       annotations:
         argocd-image-updater.argoproj.io/image-list: todo-app=thien19012004/todo-app
-        argocd-image-updater.argoproj.io/todo-app.helm.image-spec: image.tag
+        argocd-image-updater.argoproj.io/todo-app.helm.image-spec: image.tag:tag
         argocd-image-updater.argoproj.io/todo-app.update-strategy: latest
         argocd-image-updater.argoproj.io/todo-app.pull-secret: secret:argocd/dockerhub-creds
         argocd-image-updater.argoproj.io/write-back-method: argocd
