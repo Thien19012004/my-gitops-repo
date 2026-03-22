@@ -18,7 +18,7 @@ spec:
       source:
         repoURL: https://jfrog.ddthien.id.vn/artifactory/helm-local
         chart: todo-app
-        targetRevision: '{{version}}'
+        targetRevision: '*'
         helm:
           passCredentials: true
       destination:
