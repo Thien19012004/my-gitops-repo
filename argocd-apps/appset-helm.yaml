@@ -9,7 +9,7 @@ spec:
         elements:
           - cluster: local-cluster
             url: https://kubernetes.default.svc
-            version: 0.1.3
+            version: 0.1.4
   template:
     metadata:
       name: '{{cluster}}-todo-app'
