@@ -13,17 +13,18 @@ spec:
     metadata:
       name: '{{cluster}}-todo-app'
       annotations:
-        # 1. Khai báo Image cần theo dõi (Bỏ docker.io/ để khớp với Helm)
+        # 1. Dùng dấu * để bảo bot: "Soi tất cả các tag có trên Docker Hub cho tôi"
         argocd-image-updater.argoproj.io/image-list: todo-app=thien19012004/todo-app:*
-        argocd-image-updater.argoproj.io/todo-app.allow-tags: /\d+\.\d+\.\d+/
         
-        # 2. TUYỆT CHIÊU: Tách riêng Repository và Tag để không bao giờ bị lỗi lặp tên Repo
+        # 2. Dùng allow-tags để chặn tag rác: "Chỉ chấp nhận tag có định dạng số x.x.x"
+        # Regex này sẽ lọc bỏ v1, latest, prod... chỉ giữ lại 0.1.11, 0.2.1, 1.0.0 v.v.
+        argocd-image-updater.argoproj.io/todo-app.allow-tags: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        
+        # 3. Giữ nguyên việc tách đôi tham số (CỰC KỲ QUAN TRỌNG để sạch Manifest)
         argocd-image-updater.argoproj.io/todo-app.helm.image-name: image.repository
         argocd-image-updater.argoproj.io/todo-app.helm.image-tag: image.tag
         
-        # 3. Chiến lược lấy tag mới nhất và phương thức ghi đè trực tiếp
         argocd-image-updater.argoproj.io/todo-app.update-strategy: semver
-        argocd-image-updater.argoproj.io/todo-app.pull-secret: secret:argocd/dockerhub-creds
         argocd-image-updater.argoproj.io/write-back-method: argocd
     spec:
       project: default
