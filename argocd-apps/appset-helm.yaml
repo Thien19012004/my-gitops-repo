@@ -14,7 +14,8 @@ spec:
       name: '{{cluster}}-todo-app'
       annotations:
         # 1. Khai báo Image cần theo dõi (Bỏ docker.io/ để khớp với Helm)
-        argocd-image-updater.argoproj.io/image-list: todo-app=thien19012004/todo-app
+        argocd-image-updater.argoproj.io/image-list: todo-app=thien19012004/todo-app:*
+        argocd-image-updater.argoproj.io/todo-app.allow-tags: /\d+\.\d+\.\d+/
         
         # 2. TUYỆT CHIÊU: Tách riêng Repository và Tag để không bao giờ bị lỗi lặp tên Repo
         argocd-image-updater.argoproj.io/todo-app.helm.image-name: image.repository
