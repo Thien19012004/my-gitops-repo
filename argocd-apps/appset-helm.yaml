@@ -13,8 +13,14 @@ spec:
     metadata:
       name: '{{cluster}}-todo-app'
       annotations:
+        # 1. Khai báo Image cần theo dõi (Bỏ docker.io/ để khớp với Helm)
         argocd-image-updater.argoproj.io/image-list: todo-app=thien19012004/todo-app
-        argocd-image-updater.argoproj.io/todo-app.helm.image-spec: image.tag:tag
+        
+        # 2. TUYỆT CHIÊU: Tách riêng Repository và Tag để không bao giờ bị lỗi lặp tên Repo
+        argocd-image-updater.argoproj.io/todo-app.helm.image-name: image.repository
+        argocd-image-updater.argoproj.io/todo-app.helm.image-tag: image.tag
+        
+        # 3. Chiến lược lấy tag mới nhất và phương thức ghi đè trực tiếp
         argocd-image-updater.argoproj.io/todo-app.update-strategy: latest
         argocd-image-updater.argoproj.io/todo-app.pull-secret: secret:argocd/dockerhub-creds
         argocd-image-updater.argoproj.io/write-back-method: argocd
@@ -35,6 +41,7 @@ spec:
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
+  # 4. LÁ CHẮN: Chặn đứng việc ApplicationSet tự ý đè ngược lại chữ 'latest'
   ignoreApplicationDifferences:
   - jsonPointers:
     - /spec/source/helm/parameters
