@@ -19,6 +19,10 @@ spec:
         grafana:
           nodeSelector:
             type: infra-services
+          serviceMonitor:
+            enabled: true
+            labels:
+              release: prometheus-monitoring
           ingress:
             enabled: true
             ingressClassName: nginx
