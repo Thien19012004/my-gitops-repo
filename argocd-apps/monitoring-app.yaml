@@ -10,7 +10,6 @@ spec:
     chart: kube-prometheus-stack
     targetRevision: 45.0.0
     helm:
-      # Dán trực tiếp cấu hình vào đây, không dùng link HTTPS nữa
       values: |
         prometheus:
           prometheusSpec:
@@ -20,6 +19,13 @@ spec:
         grafana:
           nodeSelector:
             type: infra-services
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            pathType: Prefix      
+            hosts:
+              - grafana.ddthien.id.vn
+            path: /
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: monitoring
@@ -29,4 +35,4 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true # Bắt buộc phải có dòng này
+      - ServerSideApply=true
