@@ -1,0 +1,17 @@
+prometheus:
+  prometheusSpec:
+    nodeSelector:
+      type: infra-services # <--- Chỉ chạy trên Master 4
+    retention: 2d # Lưu 2 ngày cho nhẹ máy
+    thanos: # Cấu hình Thanos Sidecar như CV
+      baseImage: quay.io/thanos/thanos
+      version: v0.24.0
+
+grafana:
+  nodeSelector:
+    type: infra-services
+  ingress: # Cấu hình để vào bằng domain
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana.ddthien.id.vn

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-monitoring
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://prometheus-community.github.io/helm-charts' # Nguồn code quốc tế
+    chart: kube-prometheus-stack
+    targetRevision: 45.0.0
+    helm:
+      # QUAN TRỌNG: Đoạn này bảo ArgoCD lấy file Values ở BƯỚC 2 đè vào cấu hình mặc định
+      valueFiles:
+        - https://raw.githubusercontent.com/Thien19012004/my-gitops-repo/main/infra/monitoring/values-prometheus.yaml
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: monitoring # Tự tạo folder monitoring trên K8s
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
