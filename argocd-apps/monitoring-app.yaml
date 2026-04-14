@@ -15,12 +15,13 @@ spec:
           config:
             global:
               resolve_timeout: 5m
-              # Thay link Slack của bạn vào đây
-              slack_api_url: 'https://hooks.slack.com/services/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'
+              # Dùng file thay vì dán link trực tiếp để bảo mật
+              slack_api_url_file: /etc/alertmanager/secrets/alertmanager-secrets/slack-url
               smtp_smarthost: 'smtp.gmail.com:587'
               smtp_from: 'ducthien19012004@gmail.com'
               smtp_auth_username: 'ducthien19012004@gmail.com'
-              smtp_auth_password: 'asbo eyob qxwz bxex'
+              # Dùng file thay vì dán pass Gmail trực tiếp
+              smtp_auth_password_file: /etc/alertmanager/secrets/alertmanager-secrets/smtp-password
               smtp_require_tls: true
 
             route:
@@ -28,7 +29,7 @@ spec:
               group_wait: 30s
               group_interval: 5m
               repeat_interval: 12h
-              receiver: 'combined-receiver' # Mặc định gửi vào đây
+              receiver: 'combined-receiver'
               routes:
                 - match:
                     severity: critical
@@ -38,19 +39,27 @@ spec:
             receivers:
             - name: 'combined-receiver'
               slack_configs:
-              - channel: '#k8s-alerts' # Tên channel của bạn
+              - channel: '#k8s-alerts'
                 send_resolved: true
                 title: '[{{ .Status | toUpper }}] K8s Alert'
                 text: "Chi tiết lỗi: {{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}"
               email_configs:
-              - to: 'ducthienpa@gmail.com' # Email bạn muốn nhận báo cáo
+              - to: 'ducthienpa@gmail.com'
                 send_resolved: true
-        
+          
+          # Cấu hình quan trọng: Mount cái Secret vào Pod Alertmanager
+          alertmanagerSpec:
+            secrets:
+              - alertmanager-secrets
+            nodeSelector:
+              type: infra-services
+
         prometheus:
           prometheusSpec:
             nodeSelector:
               type: infra-services
             retention: 1d
+        
         grafana:
           nodeSelector:
             type: infra-services
