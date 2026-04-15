@@ -1,4 +1,4 @@
-# efk-apps.yaml - Siêu tối giản cho Lab
+# efk-apps.yaml - Phiên bản "Cổng mở là chạy"
 ---
 apiVersion: v1
 kind: Namespace
@@ -21,17 +21,22 @@ spec:
         clusterName: "elasticsearch"
         nodeGroup: "master"
         replicas: 1
-        # Ép chạy 1 node để không bao giờ bị lỗi Cluster Health
+        # Ép 1 node để tránh lỗi cluster health
         extraEnvs:
           - name: discovery.type
             value: "single-node"
           - name: xpack.security.enabled
             value: "false"
-        # ĐƠN GIẢN HÓA PROBE: Chỉ check xem port 9200 có mở không thôi
+        # DÙNG TCP SOCKET: Chỉ check port 9200, cực kỳ ổn định
         readinessProbe:
-          exec:
-            command: ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh", "es-check"]
-          initialDelaySeconds: 30
+          tcpSocket:
+            port: 9200
+          initialDelaySeconds: 40
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 9200
+          initialDelaySeconds: 60
         createCert: false
         persistence:
           enabled: true
@@ -73,8 +78,7 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
-  syncPolicy:
-    automated: { prune: true, selfHeal: true }
+  syncPolicy: { automated: { prune: true, selfHeal: true } }
 
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -96,11 +100,11 @@ spec:
           kibana.yml: |
             server.ssl.enabled: false
             xpack.security.enabled: false
+        serviceAccount: { create: true }
         service:
           type: NodePort
           nodePort: 30601
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
-  syncPolicy:
-    automated: { prune: true, selfHeal: true }
+  syncPolicy: { automated: { prune: true, selfHeal: true } }
