@@ -1,11 +1,11 @@
-# efk-apps.yaml - Official Stack (Fixed RBAC & ServiceAccount)
+# efk-apps.yaml - Official Stack 100% (No Bitnami, No SSL)
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: logging
 ---
-# 1. Elasticsearch Official
+# 1. Elasticsearch Official (docker.elastic.co)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -21,18 +21,19 @@ spec:
       values: |
         clusterName: "elasticsearch"
         nodeGroup: "master"
-        # TẠO SERVICE ACCOUNT CHO ELASTIC
+        replicas: 1
+        minimumMasterNodes: 1
+        # ÉP DÙNG IMAGE CHÍNH CHỦ - KHÔNG DÙNG BITNAMI
+        image: "docker.elastic.co/elasticsearch/elasticsearch"
+        imageTag: "8.5.1"
+        # TẮT SẠCH BẢO MẬT
+        xpack.security.enabled: false
+        createCert: false
         rbac:
           create: true
         serviceAccount:
           create: true
           name: "elasticsearch-master"
-        replicas: 1
-        minimumMasterNodes: 1
-        xpack.security.enabled: false
-        xpack.security.http.ssl.enabled: false
-        xpack.security.transport.ssl.enabled: false
-        createCert: false 
         persistence:
           enabled: true
         volumeClaimTemplate:
@@ -45,10 +46,10 @@ spec:
     namespace: logging
   syncPolicy:
     automated: { prune: true, selfHeal: true }
-    syncOptions: [CreateNamespace=true]
+    syncOptions: [CreateNamespace=true, Replace=true]
 
 ---
-# 2. Fluentd Official
+# 2. Fluentd Official (docker.io/fluent)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -62,8 +63,10 @@ spec:
     targetRevision: 0.5.0
     helm:
       values: |
-        variant: elasticsearch
-        # TẠO SERVICE ACCOUNT CHO FLUENTD (Cực kỳ quan trọng để nó đọc log Pod)
+        # Dùng image chính chủ Fluentd, không dùng Bitnami
+        image:
+          repository: fluent/fluentd-kubernetes-daemonset
+          tag: v1.16-debian-elasticsearch7-1
         serviceAccount:
           create: true
           name: "fluentd-forwarder"
@@ -80,7 +83,7 @@ spec:
     automated: { prune: true, selfHeal: true }
 
 ---
-# 3. Kibana Official
+# 3. Kibana Official (docker.elastic.co)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -94,17 +97,23 @@ spec:
     targetRevision: 8.5.1
     helm:
       values: |
-        # TẠO SERVICE ACCOUNT CHO KIBANA
-        serviceAccount:
-          create: true
-        rbac:
-          create: true
+        # ÉP DÙNG IMAGE CHÍNH CHỦ
+        image: "docker.elastic.co/kibana/kibana"
+        imageTag: "8.5.1"
         elasticsearchHosts: "http://elasticsearch-master:9200"
+        # Tắt toàn bộ Security/SSL
         protocol: http
         kibanaConfig:
           kibana.yml: |
             server.ssl.enabled: false
             xpack.security.enabled: false
+        # Xóa các cài đặt Cert mặc định gây lỗi FailedMount
+        extraVolumes: []
+        extraVolumeMounts: []
+        # TẮT CÁI JOB PRE-INSTALL GÂY LỖI
+        automountServiceAccountToken: true
+        serviceAccount:
+          create: true
         service:
           type: NodePort
           nodePort: 30601
