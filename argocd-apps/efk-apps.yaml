@@ -1,4 +1,4 @@
-# efk-apps.yaml - Phiên bản "Cổng mở là chạy"
+# efk-apps.yaml - Bản "Fix dứt điểm lỗi 1 handler"
 ---
 apiVersion: v1
 kind: Namespace
@@ -21,19 +21,20 @@ spec:
         clusterName: "elasticsearch"
         nodeGroup: "master"
         replicas: 1
-        # Ép 1 node để tránh lỗi cluster health
         extraEnvs:
           - name: discovery.type
             value: "single-node"
           - name: xpack.security.enabled
             value: "false"
-        # DÙNG TCP SOCKET: Chỉ check port 9200, cực kỳ ổn định
+        # XÓA BỎ HANDLER CŨ VÀ DÙNG TCP SOCKET MỚI
         readinessProbe:
+          exec: null  # <--- DÒNG NÀY ĐỂ XÓA LỖI "MORE THAN 1 HANDLER"
           tcpSocket:
             port: 9200
-          initialDelaySeconds: 40
+          initialDelaySeconds: 30
           periodSeconds: 10
         livenessProbe:
+          exec: null  # <--- XÓA LUÔN LIVENESS HANDLER MẶC ĐỊNH
           tcpSocket:
             port: 9200
           initialDelaySeconds: 60
