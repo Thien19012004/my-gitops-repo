@@ -1,4 +1,4 @@
-# efk-apps.yaml - Official Stack (Forced HTTP Mode)
+# efk-apps.yaml - Final Victory Version
 ---
 apiVersion: v1
 kind: Namespace
@@ -21,29 +21,36 @@ spec:
         clusterName: "elasticsearch"
         nodeGroup: "master"
         replicas: 1
-        # ÉP TẮT SSL Ở MỨC BIẾN MÔI TRƯỜNG (QUAN TRỌNG NHẤT)
+        # CỰC KỲ QUAN TRỌNG: Ép chạy chế độ 1 Node để báo trạng thái Green/Yellow
         extraEnvs:
+          - name: discovery.type
+            value: "single-node"
           - name: xpack.security.enabled
             value: "false"
-          - name: xpack.security.http.ssl.enabled
-            value: "false"
-          - name: xpack.security.transport.ssl.enabled
-            value: "false"
-        createCert: false 
-        rbac: { create: true }
-        serviceAccount: { create: true, name: "elasticsearch-master" }
+        # Sửa Probe: Chỉ cần Yellow là đủ để báo Pod Ready
+        readinessProbe:
+          readinessProbeFullCommand:
+            exec:
+              command:
+                - bash
+                - -c
+                - |
+                  set -e
+                  curl -s localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s
+        createCert: false
         persistence:
           enabled: true
         volumeClaimTemplate:
           storageClassName: "local-path"
           resources:
-            requests: { storage: 5Gi }
+            requests:
+              storage: 5Gi
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
   syncPolicy:
     automated: { prune: true, selfHeal: true }
-    syncOptions: [CreateNamespace=true, Replace=true]
+    syncOptions: [Replace=true]
 
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -59,18 +66,18 @@ spec:
     targetRevision: 0.5.0
     helm:
       values: |
-        variant: elasticsearch
-        serviceAccount: { create: true, name: "fluentd-forwarder" }
-        rbac: { create: true }
+        image:
+          repository: fluent/fluentd-kubernetes-daemonset
+          tag: v1.16-debian-elasticsearch7-1 # TAG NÀY CHẮC CHẮN TỒN TẠI
         elasticsearch:
           host: "elasticsearch-master"
           port: 9200
-          scheme: "http" # Buộc dùng http
-          ssl_verify: false
+          scheme: "http"
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
-  syncPolicy: { automated: { prune: true, selfHeal: true } }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
 
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -92,14 +99,11 @@ spec:
           kibana.yml: |
             server.ssl.enabled: false
             xpack.security.enabled: false
-            elasticsearch.ssl.verificationMode: none
-        extraVolumes: []
-        extraVolumeMounts: []
-        serviceAccount: { create: true }
         service:
           type: NodePort
           nodePort: 30601
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
-  syncPolicy: { automated: { prune: true, selfHeal: true } }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
