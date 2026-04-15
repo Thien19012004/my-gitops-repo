@@ -1,12 +1,9 @@
 # efk-apps.yaml
 ---
-# 1. Project/Namespace cho Logging (Nếu chưa có)
 apiVersion: v1
 kind: Namespace
 metadata:
   name: logging
-# 2. Application: Elasticsearch (Lưu trữ Log)
-# efk-apps.yaml (Bản Fix lỗi Mount và Image)
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -18,9 +15,11 @@ spec:
   source:
     chart: elasticsearch
     repoURL: https://charts.bitnami.com/bitnami
-    targetRevision: 19.15.0 # Dùng bản cụ thể ổn định
+    targetRevision: 19.15.0
     helm:
       values: |
+        image:
+          tag: 8 # Ép dùng tag chính, bỏ qua tag r-revision lỗi
         global:
           storageClass: "local-path"
         master:
@@ -49,11 +48,13 @@ spec:
     targetRevision: 6.4.0
     helm:
       values: |
+        image:
+          tag: 1 # Dùng tag rolling 1.x.x của Bitnami
         aggregator:
           enabled: false
         forwarder:
           enabled: true
-          # XÓA DÒNG configMap: fluentd-conf ĐI ĐỂ NÓ DÙNG MẶC ĐỊNH
+          configMap: "" # BUỘC PHẢI ĐỂ RỖNG để nó không đòi file fluentd-conf nữa
         elasticsearch:
           host: elasticsearch-master.logging.svc.cluster.local
           port: 9200
@@ -77,6 +78,8 @@ spec:
     targetRevision: 10.3.0
     helm:
       values: |
+        image:
+          tag: 8 # Ép dùng tag chính cho Kibana
         elasticsearch:
           hosts: [ "elasticsearch-master.logging.svc.cluster.local" ]
           port: 9200
