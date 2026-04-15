@@ -5,8 +5,9 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: logging
----
 # 2. Application: Elasticsearch (Lưu trữ Log)
+# efk-apps.yaml (Bản Fix lỗi Mount và Image)
+---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -17,35 +18,24 @@ spec:
   source:
     chart: elasticsearch
     repoURL: https://charts.bitnami.com/bitnami
-    targetRevision: 19.x.x
+    targetRevision: 19.15.0 # Dùng bản cụ thể ổn định
     helm:
       values: |
         global:
-          storageClass: "local-path" # Đổi thành storageClass của bạn (ví dụ: longhorn)
+          storageClass: "local-path"
         master:
           replicaCount: 1
           resources:
-            limits:
-              memory: 2Gi
-            requests:
-              cpu: 500m
-              memory: 2Gi
-        data:
-          replicaCount: 1
-        ingest:
-          replicaCount: 1
+            limits: { memory: 2Gi }
+            requests: { cpu: 500m, memory: 2Gi }
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
 
 ---
-# 3. Application: Fluentd (Thu thập Log)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -56,15 +46,14 @@ spec:
   source:
     chart: fluentd
     repoURL: https://charts.bitnami.com/bitnami
-    targetRevision: 6.x.x
+    targetRevision: 6.4.0
     helm:
       values: |
         aggregator:
-          enabled: false # Chạy DaemonSet trực tiếp để hút log node
+          enabled: false
         forwarder:
           enabled: true
-          configMap: fluentd-conf
-        # Cấu hình để Fluentd đẩy log sang Elasticsearch
+          # XÓA DÒNG configMap: fluentd-conf ĐI ĐỂ NÓ DÙNG MẶC ĐỊNH
         elasticsearch:
           host: elasticsearch-master.logging.svc.cluster.local
           port: 9200
@@ -72,12 +61,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: logging
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    automated: { prune: true, selfHeal: true }
 
 ---
-# 4. Application: Kibana (Giao diện hiển thị)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -88,21 +74,17 @@ spec:
   source:
     chart: kibana
     repoURL: https://charts.bitnami.com/bitnami
-    targetRevision: 10.x.x
+    targetRevision: 10.3.0
     helm:
       values: |
         elasticsearch:
-          hosts:
-            - elasticsearch-master.logging.svc.cluster.local
+          hosts: [ "elasticsearch-master.logging.svc.cluster.local" ]
           port: 9200
         service:
-          type: NodePort # Hoặc LoadBalancer tùy bạn
-          ports:
-            http: 5601
+          type: NodePort
+          ports: { http: 5601 }
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    automated: { prune: true, selfHeal: true }
