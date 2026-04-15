@@ -1,11 +1,11 @@
-# efk-apps.yaml - Official Stack (Elasticsearch, Fluentd, Kibana)
+# efk-apps.yaml - Official Full Stack (Fixed Destination Error)
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: logging
 ---
-# 1. Elasticsearch Official (Repo: helm.elastic.co)
+# 1. Elasticsearch Official
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -23,9 +23,10 @@ spec:
         nodeGroup: "master"
         replicas: 1
         minimumMasterNodes: 1
-        # Lab Mode: Tắt bảo mật để các thành phần kết nối HTTP nhanh
         xpack.security.enabled: false
-        # Cấp đất local-path của bạn
+        xpack.security.http.ssl.enabled: false
+        xpack.security.transport.ssl.enabled: false
+        createCert: false 
         persistence:
           enabled: true
         volumeClaimTemplate:
@@ -44,7 +45,7 @@ spec:
     syncOptions: [CreateNamespace=true]
 
 ---
-# 2. Fluentd Official (Repo: fluent.github.io)
+# 2. Fluentd Official (Đã fix lỗi thiếu destination)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -58,17 +59,11 @@ spec:
     targetRevision: 0.5.0
     helm:
       values: |
-        # Image chính chủ từ Docker Hub (fluent/fluentd-kubernetes-daemonset)
-        image:
-          repository: fluent/fluentd-kubernetes-daemonset
-          tag: v1.16-debian-elasticsearch7-1 
-        env:
-          - name: FLUENT_ELASTICSEARCH_HOST
-            value: "elasticsearch-master"
-          - name: FLUENT_ELASTICSEARCH_PORT
-            value: "9200"
-          - name: FLUENT_ELASTICSEARCH_SCHEME
-            value: "http"
+        variant: elasticsearch
+        elasticsearch:
+          host: "elasticsearch-master"
+          port: 9200
+          scheme: "http"
         resources:
           requests: { cpu: "100m", memory: "200Mi" }
   destination:
@@ -78,7 +73,7 @@ spec:
     automated: { prune: true, selfHeal: true }
 
 ---
-# 3. Kibana Official (Repo: helm.elastic.co)
+# 3. Kibana Official
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -93,11 +88,17 @@ spec:
     helm:
       values: |
         elasticsearchHosts: "http://elasticsearch-master:9200"
-        # Tắt check cert để chạy HTTP
+        protocol: http
+        elasticsearch:
+          ssl:
+            verificationMode: none
         kibanaConfig:
           kibana.yml: |
             server.ssl.enabled: false
             elasticsearch.ssl.verificationMode: none
+            xpack.security.enabled: false
+        extraVolumes: []
+        extraVolumeMounts: []
         resources:
           requests: { cpu: "500m", memory: "1Gi" }
         service:
