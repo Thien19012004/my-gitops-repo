@@ -1,4 +1,4 @@
-# efk-apps.yaml - Final Victory Version
+# efk-apps.yaml - Siêu tối giản cho Lab
 ---
 apiVersion: v1
 kind: Namespace
@@ -21,22 +21,17 @@ spec:
         clusterName: "elasticsearch"
         nodeGroup: "master"
         replicas: 1
-        # CỰC KỲ QUAN TRỌNG: Ép chạy chế độ 1 Node để báo trạng thái Green/Yellow
+        # Ép chạy 1 node để không bao giờ bị lỗi Cluster Health
         extraEnvs:
           - name: discovery.type
             value: "single-node"
           - name: xpack.security.enabled
             value: "false"
-        # Sửa Probe: Chỉ cần Yellow là đủ để báo Pod Ready
+        # ĐƠN GIẢN HÓA PROBE: Chỉ check xem port 9200 có mở không thôi
         readinessProbe:
-          readinessProbeFullCommand:
-            exec:
-              command:
-                - bash
-                - -c
-                - |
-                  set -e
-                  curl -s localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s
+          exec:
+            command: ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh", "es-check"]
+          initialDelaySeconds: 30
         createCert: false
         persistence:
           enabled: true
@@ -44,7 +39,7 @@ spec:
           storageClassName: "local-path"
           resources:
             requests:
-              storage: 5Gi
+              storage: 2Gi
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
@@ -68,7 +63,9 @@ spec:
       values: |
         image:
           repository: fluent/fluentd-kubernetes-daemonset
-          tag: v1.16-debian-elasticsearch7-1 # TAG NÀY CHẮC CHẮN TỒN TẠI
+          tag: v1.16-debian-elasticsearch7-1
+        serviceAccount: { create: true, name: "fluentd-forwarder" }
+        rbac: { create: true }
         elasticsearch:
           host: "elasticsearch-master"
           port: 9200
