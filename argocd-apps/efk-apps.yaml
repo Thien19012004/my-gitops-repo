@@ -1,11 +1,18 @@
-# efk-apps.yaml - Official Full Stack (Fixed Destination Error)
+# efk-lab.yaml
+# EFK Stack 7.17.3 - Lab only, no TLS, no security
+# Apply: kubectl apply -f efk-lab.yaml
+# Thứ tự sync: 1) elasticsearch -> 2) fluentd -> 3) kibana
+
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: logging
+
 ---
-# 1. Elasticsearch Official
+# ============================================================
+# 1. ELASTICSEARCH 7.17.3
+# ============================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -16,36 +23,83 @@ spec:
   source:
     chart: elasticsearch
     repoURL: https://helm.elastic.co
-    targetRevision: 8.5.1
+    targetRevision: 7.17.3
     helm:
       values: |
         clusterName: "elasticsearch"
         nodeGroup: "master"
         replicas: 1
         minimumMasterNodes: 1
-        xpack.security.enabled: false
-        xpack.security.http.ssl.enabled: false
-        xpack.security.transport.ssl.enabled: false
-        createCert: false 
+
+        # Single-node lab: bỏ qua bootstrap checks
+        extraEnvs:
+          - name: discovery.type
+            value: single-node
+          - name: ELASTIC_PASSWORD
+            value: ""
+
+        # Tắt toàn bộ security
+        esConfig:
+          elasticsearch.yml: |
+            xpack.security.enabled: false
+            xpack.monitoring.enabled: false
+            network.host: 0.0.0.0
+
+        # Heap = 50% memory limit, tránh OOM
+        esJavaOpts: "-Xmx1g -Xms1g"
+
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+
+        # Không tạo cert, không cần secret
+        createCert: false
+        secret:
+          enabled: false
+        protocol: http
+
         persistence:
           enabled: true
         volumeClaimTemplate:
           storageClassName: "local-path"
+          accessModes: ["ReadWriteOnce"]
           resources:
             requests:
               storage: 5Gi
-        resources:
-          requests: { cpu: "500m", memory: "2Gi" }
-          limits: { cpu: "1000m", memory: "2Gi" }
+
+        # Probe đơn giản, timeout rộng cho lab
+        readinessProbe:
+          httpGet:
+            path: /_cluster/health?local=true
+            port: 9200
+            scheme: HTTP
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 10
+
+        service:
+          type: ClusterIP
+          port: 9200
+
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
   syncPolicy:
-    automated: { prune: true, selfHeal: true }
-    syncOptions: [CreateNamespace=true]
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
 
 ---
-# 2. Fluentd Official (Đã fix lỗi thiếu destination)
+# ============================================================
+# 2. FLUENTD 0.5.0
+# ============================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -60,20 +114,58 @@ spec:
     helm:
       values: |
         variant: elasticsearch
+
         elasticsearch:
-          host: "elasticsearch-master"
+          host: "elasticsearch-master.logging.svc.cluster.local"
           port: 9200
           scheme: "http"
+          logstashFormat: true
+          logstashPrefix: "k8s"
+
+        # Chờ ES healthy trước khi start - tránh crash loop
+        initContainers:
+          - name: wait-for-elasticsearch
+            image: busybox:1.36
+            command:
+              - sh
+              - -c
+              - |
+                echo "Waiting for Elasticsearch..."
+                until wget -qO- http://elasticsearch-master.logging.svc.cluster.local:9200/_cluster/health?wait_for_status=yellow&timeout=5s; do
+                  echo "ES not ready, retry in 5s..."
+                  sleep 5
+                done
+                echo "Elasticsearch is ready."
+
         resources:
-          requests: { cpu: "100m", memory: "200Mi" }
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+
+        # Cho phép chạy trên control-plane node nếu cần
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            effect: NoSchedule
+          - key: node-role.kubernetes.io/master
+            effect: NoSchedule
+
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
   syncPolicy:
-    automated: { prune: true, selfHeal: true }
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
 
 ---
-# 3. Kibana Official
+# ============================================================
+# 3. KIBANA 7.17.3
+# ============================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -84,28 +176,54 @@ spec:
   source:
     chart: kibana
     repoURL: https://helm.elastic.co
-    targetRevision: 8.5.1
+    targetRevision: 7.17.3
     helm:
       values: |
-        elasticsearchHosts: "http://elasticsearch-master:9200"
-        protocol: http
-        elasticsearch:
-          ssl:
-            verificationMode: none
+        elasticsearchHosts: "http://elasticsearch-master.logging.svc.cluster.local:9200"
+
+        # 7.17.x không có pre-install cert hook như 8.x
         kibanaConfig:
           kibana.yml: |
             server.ssl.enabled: false
             elasticsearch.ssl.verificationMode: none
             xpack.security.enabled: false
-        extraVolumes: []
-        extraVolumeMounts: []
+            xpack.encryptedSavedObjects.encryptionKey: "lab-only-32-char-key-xxxxxxxxxxx"
+            monitoring.enabled: false
+
         resources:
-          requests: { cpu: "500m", memory: "1Gi" }
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+            scheme: HTTP
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 10
+
+        # Không tạo cert, không cần secret
+        protocol: http
+        elasticsearchCertificateSecret: ""
+        elasticsearchCertificateAuthoritiesFile: ""
+
         service:
           type: NodePort
+          port: 5601
           nodePort: 30601
+
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
   syncPolicy:
-    automated: { prune: true, selfHeal: true }
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
